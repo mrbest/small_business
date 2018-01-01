@@ -1,0 +1,44 @@
+---
+title: "SmallBusiness"
+author: "Clifton Best"
+date: "12/29/2017"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## R Markdown
+
+This is an R Markdown document. Markdown is a simple formatting syntax for authoring HTML, PDF, and MS Word documents. For more details on using R Markdown see <http://rmarkdown.rstudio.com>.
+
+When you click the **Knit** button a document will be generated that includes both content as well as the output of any embedded R code chunks within the document. You can embed an R code chunk like this:
+
+```{r load_parquet}
+source("../CombinedAddressability/sprklyRSpark.R")
+sc <- sparkInit()
+load_spark_csv(sc, "../GWCM_Exports/GWCM_FPDS_FY13_PRESENT_DEC_28.TSV")
+tic()
+spark_write_parquet(raw_df, "../GWCM_Exports/29DEC17.prq")
+#load_spark_parquet("../../GWCM_Extracts/mini04DEC17V2.prq/")
+toc()
+
+```
+
+You can also embed plots, for example:
+
+```{r plotcats}
+tic()
+fy16testing_transactions <- raw_df %>% filter(as.Date(date_signed) >= as.Date("2015-10-01") & as.Date(date_signed) <= as.Date("2016-09-30"))  
+totals <<- fy16testing_transactions %>% group_by(level_1_category) %>% summarise(cat_total = sum(dollars_obligated)) %>% collect()
+total_strings <- totals %>% mutate(dollar_totals = to_currency(cat_total, currency_symbol = "$", symbol_first = TRUE, group_size = 3, group_delim = ",", decimal_size = 2,decimal_delim = ".")) %>% collect()                                                                                                     
+
+total_strings %>% filter(is.na(level_1_category) == FALSE)%>%
+    ggplot(aes(x=as.factor(level_1_category), y=cat_total, label = dollar_totals) ) + 
+    geom_col() +geom_text(angle=90, color = "orange", size = 3, position = position_stack(vjust = 0.5))+
+    theme(axis.text.x  = element_text(angle=90, vjust=0.5, size=10))
+toc()
+```
+
+Note that the `echo = FALSE` parameter was added to the code chunk to prevent printing of the R code that generated the plot.
