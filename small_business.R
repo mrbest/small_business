@@ -3,7 +3,7 @@ designate_small_business_eligble <- function(stage,
                                              pop_country_code,
                                              date_signed,
                                              vendor_duns_number,
-                                             contingency_ops_desc,
+                                             contingency_ops,
                                              foreign_government,
                                              foreign_funding_desc,
                                              funding_agency_code,
@@ -11,7 +11,7 @@ designate_small_business_eligble <- function(stage,
                                              product_or_service_code,
                                              contracting_office_code,
                                              reference_piid,
-                                             Idv_reference_idv_piid)
+                                             idv_reference_idv_piid)
 {
   result <-  switch(stage, 
           result <- eval_jwod(),
@@ -170,7 +170,7 @@ eval_TricareDODAAC_H9400_HT9402ContractingOffice <- function(contracting_office_
   DODAAC_H9400_HT9402_result
 }
 
-eval_CentersForMedicaidMedicareServices_00NAF_ContractingOffice <- function()
+eval_CentersForMedicaidMedicareServices_00NAF_ContractingOffice <- function(contracting_office_id)
 {
   CentersForMedicaidMedicareServices_result <- FALSE
   print("eval_CentersForMedicaidMedicareServices_00NAF_ContractingOffice")
