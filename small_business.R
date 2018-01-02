@@ -162,25 +162,34 @@ eval_UtilitiesPSC_S112 <- function(product_or_service_code)
 }
 
 
-eval_TricareDODAAC_H94001ContractingOffice <- function()
+eval_TricareDODAAC_H9400_HT9402ContractingOffice <- function(contracting_office_id)
 {
+  DODAAC_H9400_HT9402_result <- FALSE
   print("eval_TricareDODAAC_H94001ContractingOffice")
-  FALSE
+  if(contracting_office_id == "H9400" | contracting_office_id == "HT9402") DODAAC_H9400_HT9402_result = TRUE
+  DODAAC_H9400_HT9402_result
 }
 
-eval_TricareDODAAC_HT9402ContractingOffice <- function()
-{
-  print("eval_TricareDODAAC_HT9402ContractingOffice")
-  FALSE
-}
 eval_CentersForMedicaidMedicareServices_00NAF_ContractingOffice <- function()
 {
+  CentersForMedicaidMedicareServices_result <- FALSE
   print("eval_CentersForMedicaidMedicareServices_00NAF_ContractingOffice")
-  FALSE
+  if(contracting_office_id == "00NAF" ) CentersForMedicaidMedicareServices_result = TRUE
+  CentersForMedicaidMedicareServices_result
 }
-eval_DeptEducationNFP <- function()
+eval_DeptEducationNFP <- function(piid, reference_pid, idv_ref_idv_piid)
   {
+  DeptEducationNFP_result <- FALSE
   print("eval_DeptEducationNFP")
-  TRUE
+  EducationNFP_piids <- c("EDFSA11D0012", 
+                          "EDFSA12D0003", 
+                          "EDFSA12D0005",  
+                          "EDFSA12D0006", 
+                          "EDFSA12D0007")
+  if(piid %in% EducationNFP_piids | reference_pid %in% EducationNFP_piids | idv_ref_idv_piid %in% EducationNFP_piids)
+  {
+    DeptEducationNFP_result = TRUE
+  }
+  DeptEducationNFP_result
   }
 
