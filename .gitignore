@@ -1,4 +1,6 @@
 /logs
+*.Rdata
+*.prq
 *.log
 # History files
 .Rhistory
