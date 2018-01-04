@@ -16,9 +16,12 @@ This is an R Markdown document. Markdown is a simple formatting syntax for autho
 When you click the **Knit** button a document will be generated that includes both content as well as the output of any embedded R code chunks within the document. You can embed an R code chunk like this:
 
 ```{r write_parquet}
+library(tictoc)
 source("../CombinedAddressability/sprklyRSpark.R")
 sc <- sparkInit()
-load_spark_csv(sc, "../GWCM_Exports/GWCM_FPDS_FY13_PRESENT_DEC_28.TSV")
+tic()
+load_spark_csv(sc, "../../GWCM_Extracts/GWCM_FPDS_FY13_PRESENT_DEC_28.TSV")
+toc()
 tic()
 spark_write_parquet(raw_df, "../GWCM_Exports/29DEC17.prq")
 #load_spark_parquet("../../GWCM_Extracts/mini04DEC17V2.prq/")
@@ -34,7 +37,83 @@ tic()
 #load_spark_parquet("04DEC17FY13_17.prq/")
 load_spark_parquet("../GWCM_Exports/29DEC17.prq/")
 toc()
+new_df <- create_mini(raw_df)
+spark_write_parquet(new_df, "29DEC17Mini.prq")
 ```
+
+```{r read mini-parqet}
+library(tictoc)
+source("../CombinedAddressability/sprklyRSpark.R")
+sc <- sparkInit()
+tic()
+#load_spark_parquet("04DEC17FY13_17.prq/")
+load_spark_parquet("29DEC17Mini.prq/")
+toc()
+```
+```{r mutate_small_business_eligibility_yrs}
+fy17 <- raw_df %>% filter(as.Date(date_signed) >= as.Date("2016-10-01") & as.Date(date_signed) <= as.Date("2017-09-30"))
+fy16 <- raw_df %>% filter(as.Date(date_signed) >= as.Date("2015-10-01") & as.Date(date_signed) <= as.Date("2016-09-30"))
+fy15 <- raw_df %>% filter(as.Date(date_signed) >= as.Date("2014-10-01") & as.Date(date_signed) <= as.Date("2015-09-30"))
+fy14 <- raw_df %>% filter(as.Date(date_signed) >= as.Date("2013-10-01") & as.Date(date_signed) <= as.Date("2014-09-30"))
+fy13 <- raw_df %>% filter(as.Date(date_signed) >= as.Date("2012-10-01") & as.Date(date_signed) <= as.Date("2013-09-30"))
+
+spark_write_parquet(fy17, "fy17_mini.prq")
+spark_write_parquet(fy16, "fy16_mini.prq")
+spark_write_parquet(fy15, "fy15_mini.prq")
+spark_write_parquet(fy14, "fy14_mini.prq")
+spark_write_parquet(fy13, "fy13_mini.prq")
+
+```
+
+```{r load_fy}
+library(tictoc)
+source("../CombinedAddressability/sprklyRSpark.R")
+source("small_business.R")
+sc <- sparkInit()
+tic()
+#load_spark_parquet("04DEC17FY13_17.prq/")
+load_spark_parquet("fy16_mini.prq/")
+fy16trans <- raw_df %>% collect()
+toc()
+tic()
+sb_exclusions_mod <- fy16trans %>% rowwise() %>% mutate(sb_exclude = designate_small_business_eligble(1, sheltered_workshop_flag,
+                                                                                                                 pop_country_code,
+                                                                                                                 date_signed,
+                                                                                                                 vendor_duns_number,
+                                                                                                                 contingency_ops,
+                                                                                                                 foreign_government,
+                                                                                                                 foreign_funding_desc,
+                                                                                                                 funding_agency_code,
+                                                                                                                 reason_not_competed,
+                                                                                                                 product_or_service_code,
+                                                                                                                 contracting_office_id,
+                                                                                                                 piid, reference_piid,
+                                                                                                                 idv_ref_idv_piid) )
+toc()
+```
+
+```{r run_sb_exclusions}
+library(tictoc)
+source("small_business.R")
+tic()
+sb_exclusions_mod <- fy16trans %>% rowwise() %>% mutate(sb_exclude = designate_small_business_eligble(1, sheltered_workshop_flag,
+                                                                                                                 pop_country_code,
+                                                                                                                 date_signed,
+                                                                                                                 vendor_duns_number,
+                                                                                                                 contingency_ops,
+                                                                                                                 foreign_government,
+                                                                                                                 foreign_funding_desc,
+                                                                                                                 funding_agency_code,
+                                                                                                                 reason_not_competed,
+                                                                                                                 product_or_service_code,
+                                                                                                                 contracting_office_id,
+                                                                                                                 piid, reference_piid,
+                                                                                                                 idv_ref_idv_piid) )
+toc()
+
+
+```
+
 
 You can also embed plots, for example:
 
@@ -55,21 +134,48 @@ Note that the `echo = FALSE` parameter was added to the code chunk to prevent pr
 
 
 ```{r mutate_small_business_eligibility}
-trans_sbe <- testing_transactions %>% 
-  mutate( sbe <- designate_small_business_eligble(stage = 1, 
-                                                  sheltered_workshop_flag = sheltered_workshop_flag, 
-                                                  pop_country_code = pop_country_code , 
-                                                  date_signed = date_signed,   
-                                                  vendor_duns_number = vendor_duns_number, 
-                                                  contingency_ops = contingency_ops, 
-                                                  foreign_government = foreign_government, 
-                                                  foreign_funding_desc = foreign_funding_desc,
-                                                  funding_agency_code = funding_agency_code, 
-                                                  reason_not_competed = reason_not_competed,
-                                                  product_or_service_code = product_or_service_code,
-                                                  contracting_office_code = contracting_office_code,
-                                                  reference_piid = reference_piid, 
-                                                  idv_reference_idv_piid = idv_reference_idv_piid)) %>%
-  collect ()
+sb_exclusions_mod <- raw_df %>% collect() %>% rowwise() %>% mutate(sb_exclude = designate_small_business_eligble(1, sheltered_workshop_flag,
+                                                                                                                 pop_country_code,
+                                                                                                                 date_signed,
+                                                                                                                 vendor_duns_number,
+                                                                                                                 contingency_ops,
+                                                                                                                 foreign_government,
+                                                                                                                 foreign_funding_desc,
+                                                                                                                 funding_agency_code,
+                                                                                                                 reason_not_competed,
+                                                                                                                 product_or_service_code,
+                                                                                                                 contracting_office_id,
+                                                                                                                 piid, reference_piid,
+                                                                                                                 idv_ref_idv_piid) )
+
+```
+
+
+
+
+
+```{r fy_small_business_mutate}
+library(tictoc)
+source("../CombinedAddressability/sprklyRSpark.R")
+source('~/Documents/Development/R/small_business/small_business.R')
+sc <- sparkInit() 
+tic()
+load_spark_parquet("../GWCM_Exports/mini_FY17.prq/")
+toc()
+tic()
+sb_exclusions_mod <- raw_df %>% collect() %>% rowwise() %>% mutate(sb_exclude = designate_small_business_eligble(1, sheltered_workshop_flag,
+                                                                                                                 pop_country_code,
+                                                                                                                 date_signed,
+                                                                                                                 vendor_duns_number,
+                                                                                                                 contingency_ops,
+                                                                                                                 foreign_government,
+                                                                                                                 foreign_funding_desc,
+                                                                                                                 funding_agency_code,
+                                                                                                                 reason_not_competed,
+                                                                                                                 product_or_service_code,
+                                                                                                                 contracting_office_id,
+                                                                                                                 piid, reference_piid,
+                                                                                                                 idv_ref_idv_piid) )
+toc()
 
 ```
