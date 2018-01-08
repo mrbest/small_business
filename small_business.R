@@ -1,3 +1,5 @@
+library(tictoc)
+source("../CombinedAddressability/sprklyRSpark.R")
 set_pre_sb_exclusions_df <- function(incoming_df)
 {
   pre_sb_exclusions_df <<- incoming_df
@@ -142,3 +144,61 @@ designate_small_business_eligble <- function(sheltered_workshop_flag,
   desig_return
 }
 
+
+spark_small_business_goaling_report <- function(sb_exclude_src_df)
+{
+  sc <- sparkInit()
+  print("reading in exclusion marked df")
+  tic()
+  sb_excluded_df <- sdf_copy_to(sc, sb_exclude_src_df, overwrite = TRUE)
+  toc()
+  tic()
+  funding_department_list <- sb_excluded_df %>% select(funding_department_name) %>% distinct() %>% collect() %>% na.omit()%>% .$funding_department_name
+  dept_length <- length(funding_department_list)
+  small_business_eligible_actions <- c()
+  small_business_eligble_dollars <- c()
+  small_business_actions <- c()
+  small_business_dollars <- c()
+  small_business_percentage <- c()
+  
+  for(i in 1:dept_length)
+  {
+    small_business_eligible_actions <- append(small_business_eligible_actions, sb_excluded_df %>% 
+                                               filter(funding_department_name == funding_department_list[i] & sb_exclude == "FALSE") %>% count() %>%collect()%>% .$n)
+    
+    small_business_eligible_obligations <- sb_excluded_df %>% 
+                                               filter(funding_department_name == funding_department_list[i] & sb_exclude == "FALSE") %>% 
+                                               select(dollars_obligated) %>% collect()
+    
+    small_business_eligble_dollars_count <- small_business_eligible_obligations %>% count() %>% .$n 
+    if(small_business_eligble_dollars_count> 0 ) 
+            small_business_eligble_dollars <- append(small_business_eligble_dollars,small_business_eligible_obligations %>% sum() )                                       
+    else small_business_eligble_dollars <- append(small_business_eligble_dollars, c(0) )                                         
+    
+    
+    small_business_actions <- append(small_business_actions, sb_excluded_df %>% 
+                                       filter(funding_department_name == funding_department_list[i] & co_bus_size_determination_code == "CO_SB") %>% count() %>%collect()%>% .$n)
+    
+    
+    
+    small_business_dollars_obligations <- sb_excluded_df %>% 
+                                       filter(funding_department_name == funding_department_list[i] & co_bus_size_determination_code == "CO_SB") %>% 
+                                       select(dollars_obligated) %>% collect()
+    
+    
+    
+    small_business_dollars_count <- small_business_dollars_obligations %>% count() %>% .$n 
+    
+    if(small_business_dollars_count> 0 ) 
+      small_business_dollars <- append(small_business_dollars, small_business_dollars_obligations %>% sum() )                                       
+    else small_business_dollars <- append(small_business_dollars, c(0) ) 
+    
+    
+    small_business_percentage <- append(small_business_percentage, small_business_dollars[i]/small_business_eligble_dollars[i])
+    print(paste0("completed ", funding_department_list[i]))
+  }
+  
+  result_df <- data_frame(funding_department_list, small_business_eligible_actions, small_business_eligble_dollars, small_business_actions, small_business_dollars, small_business_percentage)
+  toc()
+  result_df
+}

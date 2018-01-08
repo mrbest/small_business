@@ -83,13 +83,13 @@ source("../CombinedAddressability/sprklyRSpark.R")
 source("small_business.R")
 sc <- sparkInit()
 tic()
-#load_spark_parquet("04DEC17FY13_17.prq/")
-load_spark_parquet("fy16_mini.prq/")
-fy16trans <- raw_df %>% collect()
+load_spark_parquet("../GWCM_Exports/fy17_mini_raw.prq/")
+fy17trans <- ld_df %>% collect()
 toc()
+sparkShutDown(sc)
 tic()
-set_pre_sb_exclusions_df(fy16trans)
-sb_exclusions_mod <- fy16trans %>% mutate(sb_exclude = designate_small_business_eligble(sheltered_workshop_flag,
+set_pre_sb_exclusions_df(fy17trans)
+sb_exclusions_mod <- fy17trans %>% rowwise() %>% mutate(sb_exclude = designate_small_business_eligble(sheltered_workshop_flag,
                                                                                                                  pop_country_code,
                                                                                                                  date_signed,
                                                                                                                  vendor_duns_number,
@@ -114,13 +114,10 @@ toc()
 
 
 
-```{r run_sb_exclusions}
+```{r run_sb_depts}
 library(tictoc)
 source("small_business.R")
-tic()
-sb_exclusions_mod <- fy16trans %>% rowwise() %>% 
-  mutate(sb_exclude = designate_small_business_eligble(sheltered_workshop_flag, pop_country_code, date_signed, vendor_duns_number, contingency_ops, foreign_government, foreign_funding_desc, funding_agency_code, reason_not_competed, product_or_service_code, contracting_office_id,  piid, reference_piid, `idv_ref_idv_piid) )
-toc()
+
 
 
 ```
