@@ -150,22 +150,54 @@ spark_small_business_goaling_report <- function(sb_exclude_src_df)
   sc <- sparkInit()
   print("reading in exclusion marked df")
   tic()
-  sb_excluded_df <- sdf_copy_to(sc, sb_exclude_src_df, overwrite = TRUE)
+  #sb_excluded_df <<- sdf_copy_to(sc, sb_exclude_src_df, overwrite = TRUE)
+  spark_df <<- sdf_copy_to(sc, sb_exclude_src_df, overwrite = TRUE)
+  sb_excluded_df <- spark_df %>% filter(level_1_category_group == "GWCM")
   toc()
   tic()
-  funding_department_list <- sb_excluded_df %>% select(funding_department_name) %>% distinct() %>% collect() %>% na.omit()%>% .$funding_department_name
+  funding_department_list <- sb_excluded_df %>% 
+    filter(funding_cfo_act_agency == "CFO")%>%
+    select(funding_department_name) %>% 
+    distinct() %>% 
+    collect() %>% 
+    na.omit()%>%
+    .$funding_department_name
+  
+  
   dept_length <- length(funding_department_list)
   small_business_eligible_actions <- c()
   small_business_eligble_dollars <- c()
   small_business_actions <- c()
+  unique_small_business_vendors <- c()
   small_business_dollars <- c()
   small_business_percentage <- c()
+  small_disadvantaged_business_actions <-c()
+  small_disadvantaged_business_dollars <- c()
+  small_disadvantaged_business_percentage <-c()
+  eight_a_procedure_actions <- c()
+  eight_a_procedure_action_dollars <- c() 
+  eight_a_procedure_percentage <- c()
+  veterans_owned_small_business_actions <- c()
+  veterans_owned_small_business_dollars <- c()
+  veterans_owned_small_business_percentage <- c()
+  service_disabled_veteran_owned_small_business_actions <- c()
+  service_disabled_veteran_owned_small_business_dollars <- c()
+  service_disabled_veteran_owned_small_business_percentage <- c()
+  women_owned_small_business_actions <- c()
+  women_owned_small_business_dollars <- c()
+  women_owned_small_business_percentage <- c()
+  certified_HUBZone_small_business_actions <- c()
+  certified_HUBZone_small_business_dollars <- c()
+  certified_HUBZone_small_business_percentage <- c()
+  
   
   for(i in 1:dept_length)
   {
+    #1. small busines eligible actions
     small_business_eligible_actions <- append(small_business_eligible_actions, sb_excluded_df %>% 
                                                filter(funding_department_name == funding_department_list[i] & sb_exclude == "FALSE") %>% count() %>%collect()%>% .$n)
     
+    #2. small business eligible dollars
     small_business_eligible_obligations <- sb_excluded_df %>% 
                                                filter(funding_department_name == funding_department_list[i] & sb_exclude == "FALSE") %>% 
                                                select(dollars_obligated) %>% collect()
@@ -175,14 +207,19 @@ spark_small_business_goaling_report <- function(sb_exclude_src_df)
             small_business_eligble_dollars <- append(small_business_eligble_dollars,small_business_eligible_obligations %>% sum() )                                       
     else small_business_eligble_dollars <- append(small_business_eligble_dollars, c(0) )                                         
     
-    
+    #3. small business actions
     small_business_actions <- append(small_business_actions, sb_excluded_df %>% 
-                                       filter(funding_department_name == funding_department_list[i] & co_bus_size_determination_code == "CO_SB") %>% count() %>%collect()%>% .$n)
+                                       filter(funding_department_name == funding_department_list[i] & co_bus_size_determination_code == "CO_SB" & sb_exclude == "FALSE") %>% count() %>%collect()%>% .$n)
+    
+    #3.5 unique small business vendors
+    unique_small_business_vendors <- append(unique_small_business_vendors, sb_excluded_df %>% 
+                                                 filter(funding_department_name == funding_department_list[i] & co_bus_size_determination_code == "CO_SB" & sb_exclude == "FALSE") %>%
+                                                 distinct(vendor_duns_number) %>% count() %>% collect() %>% .$n)
     
     
-    
+    #4. small business dollars
     small_business_dollars_obligations <- sb_excluded_df %>% 
-                                       filter(funding_department_name == funding_department_list[i] & co_bus_size_determination_code == "CO_SB") %>% 
+                                       filter(funding_department_name == funding_department_list[i] & co_bus_size_determination_code == "CO_SB" & sb_exclude == "FALSE") %>% 
                                        select(dollars_obligated) %>% collect()
     
     
@@ -193,12 +230,479 @@ spark_small_business_goaling_report <- function(sb_exclude_src_df)
       small_business_dollars <- append(small_business_dollars, small_business_dollars_obligations %>% sum() )                                       
     else small_business_dollars <- append(small_business_dollars, c(0) ) 
     
-    
+    #5. small business percentage
     small_business_percentage <- append(small_business_percentage, small_business_dollars[i]/small_business_eligble_dollars[i])
+    
+    #6. small business disadvantaged actions
+    small_disadvantaged_business_actions <- append(small_disadvantaged_business_actions, sb_excluded_df %>% 
+                                                filter(funding_department_name == funding_department_list[i] & co_bus_size_determination_code == "CO_SB" & sb_exclude == "FALSE") %>%
+                                                filter(sdb == "SDB" | sdb_flag == "SDB_FLAG" | firm8a_joint_venture == "F8AJV"| eight_a_flag == "YES") %>% 
+                                                count() %>%
+                                                collect()%>%
+                                                .$n)
+    
+    ####  hbcu_flag and minority_institution_flag needed for dod_nasa_uscg
+
+
+    
+    #7. small business disadvantaged dollars 
+    small_disadvantaged_business_dollars_obligations <- sb_excluded_df %>%
+                filter(funding_department_name == funding_department_list[i] & co_bus_size_determination_code == "CO_SB" & sb_exclude == "FALSE") %>%
+                filter(sdb == "SDB" | sdb_flag == "SDB_FLAG" | firm8a_joint_venture == "F8AJV"| eight_a_flag == "YES") %>%
+                select(dollars_obligated) %>% 
+                collect()
+   
+    
+    
+    small_disadvantaged_business_dollars_count <- small_disadvantaged_business_dollars_obligations %>% count() %>% .$n 
+    
+    if(small_disadvantaged_business_dollars_count > 0 ) 
+      small_disadvantaged_business_dollars <- append(small_disadvantaged_business_dollars, small_disadvantaged_business_dollars_obligations %>% sum() )                                       
+    else small_disadvantaged_business_dollars <- append(small_disadvantaged_business_dollars, c(0) ) 
+    
+    #8. small business disadvantaged percentage 
+    small_disadvantaged_business_percentage <- append( small_disadvantaged_business_percentage,   small_disadvantaged_business_dollars[i] / small_business_eligble_dollars[i])
+    
+    #9 8(a) Procedure Actions
+    eight_a_procedure_actions <- append(eight_a_procedure_actions, sb_excluded_df %>% 
+                                             filter(funding_department_name == funding_department_list[i] & sb_exclude == "FALSE") %>% 
+                                             filter(co_bus_size_determination_code == "CO_SB") %>% #& eight_a_flag == "YES") %>%
+                                             filter(type_of_set_aside == "8N" | type_of_set_aside =="HS2" | type_of_set_aside =="HS3" |type_of_set_aside == "8A") %>%
+                                             count() %>%
+                                             collect()%>%
+                                            .$n)
+    
+    
+    #10 8(a) Procedure Dollars:
+    eight_a_procedure_action_dollars_obligations <- sb_excluded_df %>%
+      filter(funding_department_name == funding_department_list[i]) %>% # & sb_exclude == "FALSE") %>% 
+      filter(co_bus_size_determination_code == "CO_SB" & eight_a_flag == "YES") %>%
+      #filter(type_of_set_aside == "8(a) Sole Source" | type_of_set_aside =="8(a) with HUB Zone" | type_of_set_aside == "8(a) Competed") %>%
+      select(dollars_obligated) %>% 
+      collect()
+    
+    eight_a_procedure_action_dollars_count <- eight_a_procedure_action_dollars_obligations %>% count() %>% .$n 
+    
+    if(eight_a_procedure_action_dollars_count > 0 ) 
+      eight_a_procedure_action_dollars <- append( eight_a_procedure_action_dollars, eight_a_procedure_action_dollars_obligations %>% sum() )                                       
+    else eight_a_procedure_action_dollars <- append(eight_a_procedure_action_dollars, c(0) ) 
+    
+    #11. 8(a) Procedure Percentage
+    eight_a_procedure_percentage <- append( eight_a_procedure_percentage,   eight_a_procedure_action_dollars[i] / small_business_eligble_dollars[i])
+    
+    #12. Veteran Owned Small Business Actions
+    veterans_owned_small_business_actions <- append(veterans_owned_small_business_actions, sb_excluded_df %>% 
+      filter(funding_department_name == funding_department_list[i] & co_bus_size_determination_code == "CO_SB" & veteran_owned_flag == "VO") %>% 
+      count() %>%
+      collect()%>%
+      .$n)
+    
+    #13. Veteran Owned Small Business dollars
+    veterans_owned_small_business_dollars_obligations <- sb_excluded_df %>%
+      filter(funding_department_name == funding_department_list[i] & co_bus_size_determination_code == "CO_SB" & veteran_owned_flag == "VO") %>%
+      select(dollars_obligated) %>% 
+      collect()
+    
+    veterans_owned_small_business_dollars_count <- veterans_owned_small_business_dollars_obligations %>% count() %>% .$n 
+    
+    if(veterans_owned_small_business_dollars_count > 0 ) 
+      veterans_owned_small_business_dollars <- append(veterans_owned_small_business_dollars, veterans_owned_small_business_dollars_obligations %>% sum() )                                       
+    else veterans_owned_small_business_dollars <- append(veterans_owned_small_business_dollars, c(0) ) 
+    
+    #14. veterans_owned_small_business_percentage
+    veterans_owned_small_business_percentage <- append( veterans_owned_small_business_percentage,   veterans_owned_small_business_dollars[i] / small_business_eligble_dollars[i])
+    
+    #15. Service Disabled Veteran Owned Small Business Actions
+    service_disabled_veteran_owned_small_business_actions <- append(service_disabled_veteran_owned_small_business_actions, sb_excluded_df %>% 
+                                                                      filter(funding_department_name == funding_department_list[i] & co_bus_size_determination_code == "CO_SB" & srdvob_flag == "SRDVOB") %>% 
+                                                                      count() %>%
+                                                                      collect()%>%
+                                                                      .$n)
+      
+      
+    #16. service_disabled_veteran_owned_small_business_dollars
+    service_disabled_veteran_owned_small_business_dollars_obligations <- sb_excluded_df %>%
+      filter(funding_department_name == funding_department_list[i] & co_bus_size_determination_code == "CO_SB" & srdvob_flag == "SRDVOB") %>%
+      select(dollars_obligated) %>% 
+      collect()
+    
+    service_disabled_veteran_owned_small_business_dollars_count <- service_disabled_veteran_owned_small_business_dollars_obligations %>% count() %>% .$n 
+    
+    if(service_disabled_veteran_owned_small_business_dollars_count > 0 ) 
+      service_disabled_veteran_owned_small_business_dollars <- append(service_disabled_veteran_owned_small_business_dollars, service_disabled_veteran_owned_small_business_dollars_obligations %>% sum() )                                       
+    else service_disabled_veteran_owned_small_business_dollars <- append(service_disabled_veteran_owned_small_business_dollars, c(0) ) 
+    
+    #17. service_disabled_veteran_owned_small_business_percentage
+    
+    service_disabled_veteran_owned_small_business_percentage <- append( service_disabled_veteran_owned_small_business_percentage,   service_disabled_veteran_owned_small_business_dollars[i] / small_business_eligble_dollars[i])
+    
+    
+    #18. Women Owned Small Business Actions
+    women_owned_small_business_actions <- append(women_owned_small_business_actions, sb_excluded_df %>% 
+                                                                      filter(funding_department_name == funding_department_list[i] & co_bus_size_determination_code == "CO_SB") %>%
+                                                                      filter(wosb_flag == "WOSB" | women_owned_flag == "WO" | jvwosb_flag == "JVWOSB" | edwosb_flag == "EDWOSB" | edjvwosb_flag == "EDJVWOSB") %>% 
+                                                                      count() %>%
+                                                                      collect()%>%
+                                                                      .$n)
+    
+    #19. Women Owned Small Business dollars
+    women_owned_small_business_dollars_obligations <- sb_excluded_df %>% 
+      filter(funding_department_name == funding_department_list[i] & co_bus_size_determination_code == "CO_SB") %>%
+      filter(wosb_flag == "WOSB" | women_owned_flag == "WO" | jvwosb_flag == "JVWOSB" | edwosb_flag == "EDWOSB" | edjvwosb_flag == "EDJVWOSB")%>% 
+      select(dollars_obligated) %>% collect()
+    
+    women_owned_small_business_dollars_count <- women_owned_small_business_dollars_obligations %>% count() %>% .$n 
+    
+    if(women_owned_small_business_dollars_count > 0 ) 
+      women_owned_small_business_dollars <- append(women_owned_small_business_dollars, women_owned_small_business_dollars_obligations %>% sum() )                                       
+    else women_owned_small_business_dollars <- append(women_owned_small_business_dollars, c(0) ) 
+    
+    #20. Women Owned Small Business percentage
+    
+    women_owned_small_business_percentage <- append( women_owned_small_business_percentage,   women_owned_small_business_dollars[i] / small_business_eligble_dollars[i])
+    
+    #21. Certified HUBZone Small Business Actions
+    certified_HUBZone_small_business_actions <- append(certified_HUBZone_small_business_actions, sb_excluded_df %>% 
+                                       filter(funding_department_name == funding_department_list[i] & co_bus_size_determination_code == "CO_SB" & hubzone_flag == "HUBZ") %>% 
+                                       count() %>%
+                                       collect()%>% 
+                                       .$n)
+    
+    #22. Certified HUBZone Small Business Dollars
+    certified_HUBZone_small_business_dollars_obligations <- sb_excluded_df %>% 
+      filter(funding_department_name == funding_department_list[i] & co_bus_size_determination_code == "CO_SB" & hubzone_flag == "HUBZ") %>% 
+      select(dollars_obligated) %>% collect()
+    
+    certified_HUBZone_small_business_dollars_count <- certified_HUBZone_small_business_dollars_obligations %>% count() %>% .$n 
+    
+    if(certified_HUBZone_small_business_dollars_count> 0 ) 
+      certified_HUBZone_small_business_dollars <- append(certified_HUBZone_small_business_dollars, certified_HUBZone_small_business_dollars_obligations %>% sum() )                                       
+    else certified_HUBZone_small_business_dollars <- append(certified_HUBZone_small_business_dollars, c(0) ) 
+    
+    #23.  Certified HUBZone Small Business Percentage
+    certified_HUBZone_small_business_percentage <- append( certified_HUBZone_small_business_percentage,   certified_HUBZone_small_business_dollars[i] / small_business_eligble_dollars[i])
+    
     print(paste0("completed ", funding_department_list[i]))
+    
+    
   }
   
-  result_df <- data_frame(funding_department_list, small_business_eligible_actions, small_business_eligble_dollars, small_business_actions, small_business_dollars, small_business_percentage)
+  result_df <- data_frame(funding_department_list, 
+                          small_business_eligible_actions, 
+                          small_business_eligble_dollars, 
+                          small_business_actions, 
+                          unique_small_business_vendors, 
+                          small_business_dollars, 
+                          small_business_percentage,
+                          small_disadvantaged_business_actions,
+                          small_disadvantaged_business_dollars,
+                          small_disadvantaged_business_percentage,
+                          eight_a_procedure_actions,
+                          eight_a_procedure_action_dollars, 
+                          eight_a_procedure_percentage,
+                          veterans_owned_small_business_actions,
+                          veterans_owned_small_business_dollars,
+                          veterans_owned_small_business_percentage,
+                          service_disabled_veteran_owned_small_business_actions,
+                          service_disabled_veteran_owned_small_business_dollars,
+                          service_disabled_veteran_owned_small_business_percentage,
+                          women_owned_small_business_actions,
+                          women_owned_small_business_dollars,
+                          women_owned_small_business_percentage,
+                          certified_HUBZone_small_business_actions,
+                          certified_HUBZone_small_business_dollars,
+                          certified_HUBZone_small_business_percentage)
+                          
+                          
+                          
+                          
+                          
+                          
+                          
+                          
+                          
+                          
   toc()
   result_df
 }
+
+
+bic_spark_small_business_goaling_report <- function (sb_exclude_src_df)
+{
+  sc <- sparkInit()
+  print("reading in exclusion marked df")
+  tic()
+  #sb_excluded_df <<- sdf_copy_to(sc, sb_exclude_src_df, overwrite = TRUE)
+  spark_df <<- sdf_copy_to(sc, sb_exclude_src_df, overwrite = TRUE)
+  sb_excluded_df <- spark_df %>% filter(level_1_category_group == "GWCM")
+  toc()
+  tic()
+  bic_list <- sb_excluded_df %>% filter(official_bic_flag == "Y") %>% select(contract_name) %>%
+    distinct() %>% 
+    collect() %>% 
+    na.omit()%>% 
+    .$contract_name
+  
+  bic_length <- length(bic_list)
+  small_business_eligible_actions <- c()
+  small_business_eligble_dollars <- c()
+  small_business_actions <- c()
+  unique_small_business_vendors <- c()
+  small_business_dollars <- c()
+  small_business_percentage <- c()
+  small_disadvantaged_business_actions <-c()
+  small_disadvantaged_business_dollars <- c()
+  small_disadvantaged_business_percentage <-c()
+  eight_a_procedure_actions <- c()
+  eight_a_procedure_action_dollars <- c() 
+  eight_a_procedure_percentage <- c()
+  veterans_owned_small_business_actions <- c()
+  veterans_owned_small_business_dollars <- c()
+  veterans_owned_small_business_percentage <- c()
+  service_disabled_veteran_owned_small_business_actions <- c()
+  service_disabled_veteran_owned_small_business_dollars <- c()
+  service_disabled_veteran_owned_small_business_percentage <- c()
+  women_owned_small_business_actions <- c()
+  women_owned_small_business_dollars <- c()
+  women_owned_small_business_percentage <- c()
+  certified_HUBZone_small_business_actions <- c()
+  certified_HUBZone_small_business_dollars <- c()
+  certified_HUBZone_small_business_percentage <- c()
+  
+  
+  for(i in 1:bic_length)
+  {
+    #1. small busines eligible actions
+    small_business_eligible_actions <- append(small_business_eligible_actions, sb_excluded_df %>% 
+                                                filter(contract_name == bic_list[i] & sb_exclude == "FALSE") %>% count() %>%collect()%>% .$n)
+    #2. small business eligible dollars
+    small_business_eligible_obligations <- sb_excluded_df %>% 
+      filter(contract_name == bic_list[i] & sb_exclude == "FALSE") %>% 
+      select(dollars_obligated) %>% collect()
+    
+    small_business_eligble_dollars_count <- small_business_eligible_obligations %>% count() %>% .$n 
+    if(small_business_eligble_dollars_count> 0 ) 
+      small_business_eligble_dollars <- append(small_business_eligble_dollars,small_business_eligible_obligations %>% sum() )                                       
+    else small_business_eligble_dollars <- append(small_business_eligble_dollars, c(0) )                                         
+    
+    #3. small business actions
+    small_business_actions <- append(small_business_actions, sb_excluded_df %>% 
+                                       filter(contract_name == bic_list[i] & co_bus_size_determination_code == "CO_SB" & sb_exclude == "FALSE") %>% count() %>%collect()%>% .$n)
+    
+    #3.5 unique small business vendors
+    unique_small_business_vendors <- append(unique_small_business_vendors, sb_excluded_df %>% 
+                                              filter(contract_name == bic_list[i] & co_bus_size_determination_code == "CO_SB" & sb_exclude == "FALSE") %>%
+                                              distinct(vendor_duns_number) %>% count() %>% collect() %>% .$n)
+    
+    
+    #4. small business dollars
+    small_business_dollars_obligations <- sb_excluded_df %>% 
+      filter(contract_name == bic_list[i] & co_bus_size_determination_code == "CO_SB" & sb_exclude == "FALSE") %>% 
+      select(dollars_obligated) %>% collect()
+    
+    
+    
+    small_business_dollars_count <- small_business_dollars_obligations %>% count() %>% .$n 
+    
+    if(small_business_dollars_count> 0 ) 
+      small_business_dollars <- append(small_business_dollars, small_business_dollars_obligations %>% sum() )                                       
+    else small_business_dollars <- append(small_business_dollars, c(0) ) 
+    
+    #5. small business percentage
+    small_business_percentage <- append(small_business_percentage, small_business_dollars[i]/small_business_eligble_dollars[i])
+    
+    #6. small business disadvantaged actions
+    small_disadvantaged_business_actions <- append(small_disadvantaged_business_actions, sb_excluded_df %>% 
+                                                     filter(contract_name == bic_list[i] & co_bus_size_determination_code == "CO_SB" & sb_exclude == "FALSE") %>%
+                                                     filter(sdb == "SDB" | sdb_flag == "SDB_FLAG" | firm8a_joint_venture == "F8AJV"| eight_a_flag == "YES") %>% 
+                                                     count() %>%
+                                                     collect()%>%
+                                                     .$n)
+    
+    ####  hbcu_flag and minority_institution_flag needed for dod_nasa_uscg
+    
+    
+    
+    #7. small business disadvantaged dollars 
+    small_disadvantaged_business_dollars_obligations <- sb_excluded_df %>%
+      filter(contract_name == bic_list[i] & co_bus_size_determination_code == "CO_SB" & sb_exclude == "FALSE") %>%
+      filter(sdb == "SDB" | sdb_flag == "SDB_FLAG" | firm8a_joint_venture == "F8AJV"| eight_a_flag == "YES") %>%
+      select(dollars_obligated) %>% 
+      collect()
+    
+    
+    
+    small_disadvantaged_business_dollars_count <- small_disadvantaged_business_dollars_obligations %>% count() %>% .$n 
+    
+    if(small_disadvantaged_business_dollars_count > 0 ) 
+      small_disadvantaged_business_dollars <- append(small_disadvantaged_business_dollars, small_disadvantaged_business_dollars_obligations %>% sum() )                                       
+    else small_disadvantaged_business_dollars <- append(small_disadvantaged_business_dollars, c(0) ) 
+    
+    #8. small business disadvantaged percentage 
+    small_disadvantaged_business_percentage <- append( small_disadvantaged_business_percentage,   small_disadvantaged_business_dollars[i] / small_business_eligble_dollars[i])
+    
+    #9 8(a) Procedure Actions
+    eight_a_procedure_actions <- append(eight_a_procedure_actions, sb_excluded_df %>% 
+                                          filter(contract_name == bic_list[i] & sb_exclude == "FALSE") %>% 
+                                          filter(co_bus_size_determination_code == "CO_SB") %>% #& eight_a_flag == "YES") %>%
+                                          filter(type_of_set_aside == "8N" | type_of_set_aside =="HS2" | type_of_set_aside =="HS3" |type_of_set_aside == "8A") %>%
+                                          count() %>%
+                                          collect()%>%
+                                          .$n)
+    
+    
+    #10 8(a) Procedure Dollars:
+    eight_a_procedure_action_dollars_obligations <- sb_excluded_df %>%
+      filter(contract_name == bic_list[i])%>% # & sb_exclude == "FALSE") %>% 
+      filter(co_bus_size_determination_code == "CO_SB" & eight_a_flag == "YES") %>%
+      #filter(type_of_set_aside == "8(a) Sole Source" | type_of_set_aside =="8(a) with HUB Zone" | type_of_set_aside == "8(a) Competed") %>%
+      select(dollars_obligated) %>% 
+      collect()
+    
+    eight_a_procedure_action_dollars_count <- eight_a_procedure_action_dollars_obligations %>% count() %>% .$n 
+    
+    if(eight_a_procedure_action_dollars_count > 0 ) 
+      eight_a_procedure_action_dollars <- append( eight_a_procedure_action_dollars, eight_a_procedure_action_dollars_obligations %>% sum() )                                       
+    else eight_a_procedure_action_dollars <- append(eight_a_procedure_action_dollars, c(0) ) 
+    
+    #11. 8(a) Procedure Percentage
+    eight_a_procedure_percentage <- append( eight_a_procedure_percentage,   eight_a_procedure_action_dollars[i] / small_business_eligble_dollars[i])
+    
+    #12. Veteran Owned Small Business Actions
+    veterans_owned_small_business_actions <- append(veterans_owned_small_business_actions, sb_excluded_df %>% 
+                                                      filter(contract_name == bic_list[i] & co_bus_size_determination_code == "CO_SB" & veteran_owned_flag == "VO") %>% 
+                                                      count() %>%
+                                                      collect()%>%
+                                                      .$n)
+    
+    #13. Veteran Owned Small Business dollars
+    veterans_owned_small_business_dollars_obligations <- sb_excluded_df %>%
+      filter(contract_name == bic_list[i] & co_bus_size_determination_code == "CO_SB" & veteran_owned_flag == "VO") %>%
+      select(dollars_obligated) %>% 
+      collect()
+    
+    veterans_owned_small_business_dollars_count <- veterans_owned_small_business_dollars_obligations %>% count() %>% .$n 
+    
+    if(veterans_owned_small_business_dollars_count > 0 ) 
+      veterans_owned_small_business_dollars <- append(veterans_owned_small_business_dollars, veterans_owned_small_business_dollars_obligations %>% sum() )                                       
+    else veterans_owned_small_business_dollars <- append(veterans_owned_small_business_dollars, c(0) ) 
+    
+    #14. veterans_owned_small_business_percentage
+    veterans_owned_small_business_percentage <- append( veterans_owned_small_business_percentage,   veterans_owned_small_business_dollars[i] / small_business_eligble_dollars[i])
+    
+    #15. Service Disabled Veteran Owned Small Business Actions
+    service_disabled_veteran_owned_small_business_actions <- append(service_disabled_veteran_owned_small_business_actions, sb_excluded_df %>% 
+                                                                      filter(contract_name == bic_list[i] & co_bus_size_determination_code == "CO_SB" & srdvob_flag == "SRDVOB") %>% 
+                                                                      count() %>%
+                                                                      collect()%>%
+                                                                      .$n)
+    
+    
+    #16. service_disabled_veteran_owned_small_business_dollars
+    service_disabled_veteran_owned_small_business_dollars_obligations <- sb_excluded_df %>%
+      filter(contract_name == bic_list[i] & co_bus_size_determination_code == "CO_SB" & srdvob_flag == "SRDVOB") %>%
+      select(dollars_obligated) %>% 
+      collect()
+    
+    service_disabled_veteran_owned_small_business_dollars_count <- service_disabled_veteran_owned_small_business_dollars_obligations %>% count() %>% .$n 
+    
+    if(service_disabled_veteran_owned_small_business_dollars_count > 0 ) 
+      service_disabled_veteran_owned_small_business_dollars <- append(service_disabled_veteran_owned_small_business_dollars, service_disabled_veteran_owned_small_business_dollars_obligations %>% sum() )                                       
+    else service_disabled_veteran_owned_small_business_dollars <- append(service_disabled_veteran_owned_small_business_dollars, c(0) ) 
+    
+    #17. service_disabled_veteran_owned_small_business_percentage
+    
+    service_disabled_veteran_owned_small_business_percentage <- append( service_disabled_veteran_owned_small_business_percentage,   service_disabled_veteran_owned_small_business_dollars[i] / small_business_eligble_dollars[i])
+    
+    
+    #18. Women Owned Small Business Actions
+    women_owned_small_business_actions <- append(women_owned_small_business_actions, sb_excluded_df %>% 
+                                                   filter(contract_name == bic_list[i] & co_bus_size_determination_code == "CO_SB") %>%
+                                                   filter(wosb_flag == "WOSB" | women_owned_flag == "WO" | jvwosb_flag == "JVWOSB" | edwosb_flag == "EDWOSB" | edjvwosb_flag == "EDJVWOSB") %>% 
+                                                   count() %>%
+                                                   collect()%>%
+                                                   .$n)
+    
+    #19. Women Owned Small Business dollars
+    women_owned_small_business_dollars_obligations <- sb_excluded_df %>% 
+      filter(contract_name == bic_list[i] & co_bus_size_determination_code == "CO_SB") %>%
+      filter(wosb_flag == "WOSB" | women_owned_flag == "WO" | jvwosb_flag == "JVWOSB" | edwosb_flag == "EDWOSB" | edjvwosb_flag == "EDJVWOSB")%>% 
+      select(dollars_obligated) %>% collect()
+    
+    women_owned_small_business_dollars_count <- women_owned_small_business_dollars_obligations %>% count() %>% .$n 
+    
+    if(women_owned_small_business_dollars_count > 0 ) 
+      women_owned_small_business_dollars <- append(women_owned_small_business_dollars, women_owned_small_business_dollars_obligations %>% sum() )                                       
+    else women_owned_small_business_dollars <- append(women_owned_small_business_dollars, c(0) ) 
+    
+    #20. Women Owned Small Business percentage
+    
+    women_owned_small_business_percentage <- append( women_owned_small_business_percentage,   women_owned_small_business_dollars[i] / small_business_eligble_dollars[i])
+    
+    #21. Certified HUBZone Small Business Actions
+    certified_HUBZone_small_business_actions <- append(certified_HUBZone_small_business_actions, sb_excluded_df %>% 
+                                                         filter(contract_name == bic_list[i] & co_bus_size_determination_code == "CO_SB" & hubzone_flag == "HUBZ") %>% 
+                                                         count() %>%
+                                                         collect()%>% 
+                                                         .$n)
+    
+    #22. Certified HUBZone Small Business Dollars
+    certified_HUBZone_small_business_dollars_obligations <- sb_excluded_df %>% 
+      filter(contract_name == bic_list[i] & co_bus_size_determination_code == "CO_SB" & hubzone_flag == "HUBZ") %>% 
+      select(dollars_obligated) %>% collect()
+    
+    certified_HUBZone_small_business_dollars_count <- certified_HUBZone_small_business_dollars_obligations %>% count() %>% .$n 
+    
+    if(certified_HUBZone_small_business_dollars_count> 0 ) 
+      certified_HUBZone_small_business_dollars <- append(certified_HUBZone_small_business_dollars, certified_HUBZone_small_business_dollars_obligations %>% sum() )                                       
+    else certified_HUBZone_small_business_dollars <- append(certified_HUBZone_small_business_dollars, c(0) ) 
+    
+    #23.  Certified HUBZone Small Business Percentage
+    certified_HUBZone_small_business_percentage <- append( certified_HUBZone_small_business_percentage,   certified_HUBZone_small_business_dollars[i] / small_business_eligble_dollars[i])
+    
+    print(paste0("completed ", bic_list[i]))
+    
+    
+  }
+  
+  result_df <- data_frame(bic_list, 
+                          small_business_eligible_actions, 
+                          small_business_eligble_dollars, 
+                          small_business_actions, 
+                          unique_small_business_vendors,
+                          small_business_dollars, 
+                          small_business_percentage,
+                          small_disadvantaged_business_actions,
+                          small_disadvantaged_business_dollars,
+                          small_disadvantaged_business_percentage,
+                          eight_a_procedure_actions,
+                          eight_a_procedure_action_dollars, 
+                          eight_a_procedure_percentage,
+                          veterans_owned_small_business_actions,
+                          veterans_owned_small_business_dollars,
+                          veterans_owned_small_business_percentage,
+                          service_disabled_veteran_owned_small_business_actions,
+                          service_disabled_veteran_owned_small_business_dollars,
+                          service_disabled_veteran_owned_small_business_percentage,
+                          women_owned_small_business_actions,
+                          women_owned_small_business_dollars,
+                          women_owned_small_business_percentage,
+                          certified_HUBZone_small_business_actions,
+                          certified_HUBZone_small_business_dollars,
+                          certified_HUBZone_small_business_percentage)
+  
+  
+  
+  
+  
+  
+  
+  
+  
+  
+  toc()
+  result_df
+}
+
+
+#colnames(sb_exclusions_mod %>% select(grep("veteran", colnames(sb_exclusions_mod))))

@@ -15,28 +15,28 @@ This is an R Markdown document. Markdown is a simple formatting syntax for autho
 
 When you click the **Knit** button a document will be generated that includes both content as well as the output of any embedded R code chunks within the document. You can embed an R code chunk like this:
 
-```{r write_parquet}
+```{r data_perp_write_parquet}
 library(tictoc)
 source("../CombinedAddressability/sprklyRSpark.R")
 sc <- sparkInit()
 tic()
-load_spark_csv(sc, "../../GWCM_Extracts/GWCM_FPDS_FY13_PRESENT_DEC_28.TSV", "../GWCM_Exports/RAW_29DEC17.prq", "../GWCM_Exports/GWCM_29DEC17.prq")
+load_spark_csv(sc, "../../GWCM_Extracts/GWCM_FPDS_FY16_PRESENT_JAN09.TSV", "../GWCM_Exports/RAW_FY16_Present09Jan18.prq", "../GWCM_Exports/GWCM_FY16_Present09Jan18.prq")
 toc()
 tic()
-create_mini_from_df(raw_df, "../GWCM_Exports/MINI_RAW_29DEC17.prq")
+mini_df <- create_mini_from_df(raw_df, "../GWCM_Exports/MINI_RAW_09Jan18.prq")
 toc()
 
 fy17 <- mini_df %>% filter(as.Date(date_signed) >= as.Date("2016-10-01") & as.Date(date_signed) <= as.Date("2017-09-30"))
 fy16 <- mini_df %>% filter(as.Date(date_signed) >= as.Date("2015-10-01") & as.Date(date_signed) <= as.Date("2016-09-30"))
-fy15 <- mini_df %>% filter(as.Date(date_signed) >= as.Date("2014-10-01") & as.Date(date_signed) <= as.Date("2015-09-30"))
-fy14 <- mini_df %>% filter(as.Date(date_signed) >= as.Date("2013-10-01") & as.Date(date_signed) <= as.Date("2014-09-30"))
-fy13 <- mini_df %>% filter(as.Date(date_signed) >= as.Date("2012-10-01") & as.Date(date_signed) <= as.Date("2013-09-30"))
+#fy15 <- mini_df %>% filter(as.Date(date_signed) >= as.Date("2014-10-01") & as.Date(date_signed) <= as.Date("2015-09-30"))
+#fy14 <- mini_df %>% filter(as.Date(date_signed) >= as.Date("2013-10-01") & as.Date(date_signed) <= as.Date("2014-09-30"))
+#fy13 <- mini_df %>% filter(as.Date(date_signed) >= as.Date("2012-10-01") & as.Date(date_signed) <= as.Date("2013-09-30"))
 
 spark_write_parquet(fy17, "../GWCM_Exports/fy17_mini_raw.prq")
 spark_write_parquet(fy16, "../GWCM_Exports/fy16_mini_raw.prq")
-spark_write_parquet(fy15, "../GWCM_Exports/fy15_mini_raw.prq")
-spark_write_parquet(fy14, "../GWCM_Exports/fy14_mini_raw.prq")
-spark_write_parquet(fy13, "../GWCM_Exports/fy13_mini_raw.prq")
+#spark_write_parquet(fy15, "../GWCM_Exports/fy15_mini_raw.prq")
+#spark_write_parquet(fy14, "../GWCM_Exports/fy14_mini_raw.prq")
+#spark_write_parquet(fy13, "../GWCM_Exports/fy13_mini_raw.prq")
 
 
 ```
@@ -46,11 +46,12 @@ library(tictoc)
 source("../CombinedAddressability/sprklyRSpark.R")
 sc <- sparkInit()
 tic()
-#load_spark_parquet("04DEC17FY13_17.prq/")
-load_spark_parquet("../GWCM_Exports/RAW_29DEC17.prq/")
+load_spark_parquet("../GWCM_Exports/RAW_FY16_Present09Jan18.prq/")
 toc()
-new_df <- create_mini(raw_df)
-spark_write_parquet(new_df, "RAW_29DEC17Mini.prq")
+tic()
+mini_df <- create_mini_from_df(ld_df, "../GWCM_Exports/RAW_09DEC18Mini.prq")
+toc()
+
 ```
 
 ```{r read mini-parqet}
@@ -89,7 +90,7 @@ toc()
 sparkShutDown(sc)
 tic()
 set_pre_sb_exclusions_df(fy17trans)
-sb_exclusions_mod <- fy17trans %>% rowwise() %>% mutate(sb_exclude = designate_small_business_eligble(sheltered_workshop_flag,
+sb_exclusions_modfy16 <- fy17trans %>% rowwise() %>% mutate(sb_exclude = designate_small_business_eligble(sheltered_workshop_flag,
                                                                                                                  pop_country_code,
                                                                                                                  date_signed,
                                                                                                                  vendor_duns_number,
@@ -186,4 +187,31 @@ sb_exclusions_mod <- raw_df %>% collect() %>% rowwise() %>% mutate(sb_exclude = 
                                                                                                                  idv_ref_idv_piid) )
 toc()
 
+```
+
+
+``` {r fy_small_business_vendor_count}
+
+bic_vendor_spark_src <- ld_df %>% filter(as.Date(date_signed) >= as.date("2016-10-01") & as.Date(date_signed) <= as.date("2017-09-30") ) %>%
+    filter(official_bic_flag == "Y" & level_1_category_group =="GWCM") %>% 
+     group_by (vendor_duns_number, vendor_name)  %>%
+     summarise(obligations = sum(dollars_obligated)) %>%
+     arrange(desc(obligations)) %>% collect()
+
+bic_vendor_by_contract_spark_src <- ld_df %>% filter(as.Date(date_signed) >= as.date("2016-10-01") & as.Date(date_signed) <= as.date("2017-09-30") ) %>%
+    filter(official_bic_flag == "Y" & level_1_category_group =="GWCM") %>% 
+     group_by (contract_name, vendor_duns_number, vendor_name)  %>%
+     summarise(obligations = sum(dollars_obligated)) %>%
+     arrange(contract_name, desc(obligations)) %>% collect()
+
+```
+
+
+``` {r idv_contract_exploration}
+library(tictoc)
+source("../CombinedAddressability/sprklyRSpark.R")
+sc <- sparkInit()
+tic()
+load_spark_csv(sc, "../../GWCM_Extracts/FPDS_IDV_FY13_PRESENT.tsv", "../GWCM_Exports/FPDS_IDV_FY13_PRESENT.prq", "../GWCM_Exports/GWCM_FPDS_IDV_FY13_PRESENT.prq")  
+toc()
 ```
