@@ -15,120 +15,13 @@ This is an R Markdown document. Markdown is a simple formatting syntax for autho
 
 When you click the **Knit** button a document will be generated that includes both content as well as the output of any embedded R code chunks within the document. You can embed an R code chunk like this:
 
-```{r data_perp_write_parquet}
-library(tictoc)
-source("../CombinedAddressability/sprklyRSpark.R")
-sc <- sparkInit()
-tic()
-load_spark_csv(sc, "../../GWCM_Extracts/GWCM_FPDS_FY16_PRESENT_JAN09.TSV", "../GWCM_Exports/RAW_FY16_Present09Jan18.prq", "../GWCM_Exports/GWCM_FY16_Present09Jan18.prq")
-toc()
-tic()
-mini_df <- create_mini_from_df(raw_df, "../GWCM_Exports/MINI_RAW_09Jan18.prq")
-toc()
-
-fy17 <- mini_df %>% filter(as.Date(date_signed) >= as.Date("2016-10-01") & as.Date(date_signed) <= as.Date("2017-09-30"))
-fy16 <- mini_df %>% filter(as.Date(date_signed) >= as.Date("2015-10-01") & as.Date(date_signed) <= as.Date("2016-09-30"))
-#fy15 <- mini_df %>% filter(as.Date(date_signed) >= as.Date("2014-10-01") & as.Date(date_signed) <= as.Date("2015-09-30"))
-#fy14 <- mini_df %>% filter(as.Date(date_signed) >= as.Date("2013-10-01") & as.Date(date_signed) <= as.Date("2014-09-30"))
-#fy13 <- mini_df %>% filter(as.Date(date_signed) >= as.Date("2012-10-01") & as.Date(date_signed) <= as.Date("2013-09-30"))
-
-spark_write_parquet(fy17, "../GWCM_Exports/fy17_mini_raw.prq")
-spark_write_parquet(fy16, "../GWCM_Exports/fy16_mini_raw.prq")
-#spark_write_parquet(fy15, "../GWCM_Exports/fy15_mini_raw.prq")
-#spark_write_parquet(fy14, "../GWCM_Exports/fy14_mini_raw.prq")
-#spark_write_parquet(fy13, "../GWCM_Exports/fy13_mini_raw.prq")
-
-
-```
-
-```{r read parqet}
-library(tictoc)
-source("../CombinedAddressability/sprklyRSpark.R")
-sc <- sparkInit()
-tic()
-load_spark_parquet("../GWCM_Exports/RAW_FY16_Present09Jan18.prq/")
-toc()
-tic()
-mini_df <- create_mini_from_df(ld_df, "../GWCM_Exports/RAW_09DEC18Mini.prq")
-toc()
-
-```
-
-```{r read mini-parqet}
-library(tictoc)
-source("../CombinedAddressability/sprklyRSpark.R")
-sc <- sparkInit()
-tic()
-#load_spark_parquet("04DEC17FY13_17.prq/")
-load_spark_parquet("RAW_29DEC17Mini.prq/")
-toc()
-```
-```{r mutate_small_business_eligibility_yrs}
-fy17 <- raw_df %>% filter(as.Date(date_signed) >= as.Date("2016-10-01") & as.Date(date_signed) <= as.Date("2017-09-30"))
-fy16 <- raw_df %>% filter(as.Date(date_signed) >= as.Date("2015-10-01") & as.Date(date_signed) <= as.Date("2016-09-30"))
-fy15 <- raw_df %>% filter(as.Date(date_signed) >= as.Date("2014-10-01") & as.Date(date_signed) <= as.Date("2015-09-30"))
-fy14 <- raw_df %>% filter(as.Date(date_signed) >= as.Date("2013-10-01") & as.Date(date_signed) <= as.Date("2014-09-30"))
-fy13 <- raw_df %>% filter(as.Date(date_signed) >= as.Date("2012-10-01") & as.Date(date_signed) <= as.Date("2013-09-30"))
-
-spark_write_parquet(fy17, "fy17_mini.prq")
-spark_write_parquet(fy16, "fy16_mini.prq")
-spark_write_parquet(fy15, "fy15_mini.prq")
-spark_write_parquet(fy14, "fy14_mini.prq")
-spark_write_parquet(fy13, "fy13_mini.prq")
-
-```
-
-```{r load_fy}
-library(tictoc)
-source("../CombinedAddressability/sprklyRSpark.R")
-source("small_business.R")
-sc <- sparkInit()
-tic()
-load_spark_parquet("../GWCM_Exports/fy17_mini_raw.prq/")
-fy17trans <- ld_df %>% collect()
-toc()
-sparkShutDown(sc)
-tic()
-set_pre_sb_exclusions_df(fy17trans)
-sb_exclusions_modfy16 <- fy17trans %>% rowwise() %>% mutate(sb_exclude = designate_small_business_eligble(sheltered_workshop_flag,
-                                                                                                                 pop_country_code,
-                                                                                                                 date_signed,
-                                                                                                                 vendor_duns_number,
-                                                                                                                 contingency_ops,
-                                                                                                                 foreign_government,
-                                                                                                                 foreign_funding_desc,
-                                                                                                                 funding_agency_code,
-                                                                                                                 reason_not_competed,
-                                                                                                                 product_or_service_code,
-                                                                                                                 contracting_office_id,
-                                                                                                                 piid, reference_piid,
-                                                                                                                 idv_ref_idv_piid) )
-toc()
-```
-
-
-
-
-
-
-
-
-
-
-```{r run_sb_depts}
-library(tictoc)
-source("small_business.R")
-
-
-
-```
-
-
 You can also embed plots, for example:
 
 ```{r plotcats}
+library(lucr)
+library(ggplot2)
 tic()
-fy16testing_transactions <- raw_df %>% filter(as.Date(date_signed) >= as.Date("2015-10-01") & as.Date(date_signed) <= as.Date("2016-09-30"))  
+fy16testing_transactions <- ld_df %>% filter(as.Date(date_signed) >= as.Date("2015-10-01") & as.Date(date_signed) <= as.Date("2016-09-30"))  
 totals <<- fy16testing_transactions %>% group_by(level_1_category) %>% summarise(cat_total = sum(dollars_obligated)) %>% collect()
 total_strings <- totals %>% mutate(dollar_totals = to_currency(cat_total, currency_symbol = "$", symbol_first = TRUE, group_size = 3, group_delim = ",", decimal_size = 2,decimal_delim = ".")) %>% collect()                                                                                                     
 
@@ -139,58 +32,31 @@ total_strings %>% filter(is.na(level_1_category) == FALSE)%>%
 toc()
 ```
 
-Note that the `echo = FALSE` parameter was added to the code chunk to prevent printing of the R code that generated the plot.
 
 
-```{r mutate_small_business_eligibility}
-sb_exclusions_mod <- raw_df %>% collect() %>% rowwise() %>% mutate(sb_exclude = designate_small_business_eligble(1, sheltered_workshop_flag,
-                                                                                                                 pop_country_code,
-                                                                                                                 date_signed,
-                                                                                                                 vendor_duns_number,
-                                                                                                                 contingency_ops,
-                                                                                                                 foreign_government,
-                                                                                                                 foreign_funding_desc,
-                                                                                                                 funding_agency_code,
-                                                                                                                 reason_not_competed,
-                                                                                                                 product_or_service_code,
-                                                                                                                 contracting_office_id,
-                                                                                                                 piid, reference_piid,
-                                                                                                                 idv_ref_idv_piid) )
-
-```
-
-
-
-
-
-```{r fy_small_business_mutate}
+```{r spark_apply_process process_fy_mini-parqet}
 library(tictoc)
-source("../CombinedAddressability/sprklyRSpark.R")
-source('~/Documents/Development/R/small_business/small_business.R')
-sc <- sparkInit() 
+source("small_business.R")
+sc <- sparkInit()
 tic()
-load_spark_parquet("../GWCM_Exports/mini_FY17.prq/")
+fy16 <- load_spark_parquet("../../GWCM_Extracts/fy16_mini_raw_06Mar18.prq/")
+toc()
+
+tic()
+
+designated_fy_16 <- columnar_small_business_desig(fy16 %>% collect())
+
 toc()
 tic()
-sb_exclusions_mod <- raw_df %>% collect() %>% rowwise() %>% mutate(sb_exclude = designate_small_business_eligble(1, sheltered_workshop_flag,
-                                                                                                                 pop_country_code,
-                                                                                                                 date_signed,
-                                                                                                                 vendor_duns_number,
-                                                                                                                 contingency_ops,
-                                                                                                                 foreign_government,
-                                                                                                                 foreign_funding_desc,
-                                                                                                                 funding_agency_code,
-                                                                                                                 reason_not_competed,
-                                                                                                                 product_or_service_code,
-                                                                                                                 contracting_office_id,
-                                                                                                                 piid, reference_piid,
-                                                                                                                 idv_ref_idv_piid) )
+save(designated_fy_16, file = "FY18_sb_exclusions06MAR18.Rdata")
 toc()
+
+fy_16_dept_SBGR <- spark_small_business_goaling_report(designated_fy_16)
 
 ```
 
 
-``` {r fy_small_business_vendor_count}
+```{r fy_small_business_vendor_count}
 
 bic_vendor_spark_src <- ld_df %>% filter(as.Date(date_signed) >= as.date("2016-10-01") & as.Date(date_signed) <= as.date("2017-09-30") ) %>%
     filter(official_bic_flag == "Y" & level_1_category_group =="GWCM") %>% 
@@ -207,11 +73,4 @@ bic_vendor_by_contract_spark_src <- ld_df %>% filter(as.Date(date_signed) >= as.
 ```
 
 
-``` {r idv_contract_exploration}
-library(tictoc)
-source("../CombinedAddressability/sprklyRSpark.R")
-sc <- sparkInit()
-tic()
-load_spark_csv(sc, "../../GWCM_Extracts/FPDS_IDV_FY13_PRESENT.tsv", "../GWCM_Exports/FPDS_IDV_FY13_PRESENT.prq", "../GWCM_Exports/GWCM_FPDS_IDV_FY13_PRESENT.prq")  
-toc()
-```
+
